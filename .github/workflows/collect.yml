@@ -1,0 +1,33 @@
+name: Collect A-share sector evidence
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 03:38 UTC = 11:38 Asia/Shanghai, Monday through Friday.
+    - cron: "38 3 * * 1-5"
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Build midday evidence pack
+        run: python collector.py
+      - name: Commit latest evidence
+        run: |
+          git config user.name "a-share-sector-bot"
+          git config user.email "a-share-sector-bot@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || git commit -m "data: update sector evidence"
+          git push
