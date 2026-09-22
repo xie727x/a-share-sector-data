@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import re
+import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -36,14 +37,21 @@ def json_value(value: Any) -> Any:
     return value
 
 
-def retry(operation: Callable[[], Any], attempts: int = 3) -> Any:
+def retry(operation: Callable[[], Any], attempts: int = 3, delays: tuple[float, ...] = (2, 4)) -> Any:
+    """Call `operation`, retrying transient public-source failures.
+
+    `delays` gives the wait after each failed attempt.  Critical source fetches
+    pass a longer schedule; per-board history fetches stay short so one bad
+    board cannot stall the whole loop.
+    """
     error: Exception | None = None
     for attempt in range(attempts):
         try:
             return operation()
         except Exception as exc:  # Public sources can transiently throttle requests.
             error = exc
-            time.sleep(2 * (attempt + 1))
+            if attempt < attempts - 1:
+                time.sleep(delays[attempt] if attempt < len(delays) else delays[-1])
     raise RuntimeError(str(error)) from error
 
 
@@ -108,7 +116,8 @@ def fetch_benchmark(today: datetime) -> pd.DataFrame:
             period="daily",
             start_date=start,
             end_date=today.strftime("%Y%m%d"),
-        )
+        ),
+        delays=(5, 15),
     )
     merged = pd.concat([existing, fetched], ignore_index=True)
     date_col = first_column(merged, ["日期", "date"])
@@ -242,17 +251,20 @@ def coverage(metrics: dict[str, Any], snapshot: dict[str, Any] | None) -> tuple[
     return score, missing
 
 
-def main() -> None:
+def main() -> int:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     now = now_cn()
     errors: list[dict[str, str]] = []
     try:
-        board_frame = retry(ak.stock_board_industry_name_em)
+        # Critical source fetches use a longer backoff than per-board history
+        # calls: a single aborted connection must not turn into a red run, and
+        # this path gates the whole evidence pack.
+        board_frame = retry(ak.stock_board_industry_name_em, delays=(5, 15))
         name_col = first_column(board_frame, ["板块名称", "名称", "行业名称"])
         if not name_col:
             raise RuntimeError("industry list has no name column")
         boards = board_frame[name_col].dropna().astype(str).drop_duplicates().tolist()
-        spot = retry(ak.stock_board_industry_spot_em)
+        spot = retry(ak.stock_board_industry_spot_em, delays=(5, 15))
         benchmark = fetch_benchmark(now)
     except Exception as exc:
         payload = {
@@ -263,7 +275,11 @@ def main() -> None:
             "sectors": [],
         }
         (DATA_DIR / "latest.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-        return
+        # Fail loudly.  A non-zero exit skips the workflow's commit step, so the
+        # previous good evidence pack is preserved, but the run turns red and the
+        # reason is visible instead of silently publishing an empty pack.
+        print(f"data_status=unavailable reason={payload['reason']}", file=sys.stderr)
+        return 1
 
     sectors: list[dict[str, Any]] = []
     for index, board in enumerate(boards):
@@ -311,6 +327,12 @@ def main() -> None:
     }
     (DATA_DIR / "latest.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=json_value), encoding="utf-8")
 
+    if status != "ready":
+        print(f"data_status={status} reason={reason}", file=sys.stderr)
+        return 1
+    print(f"data_status=ready sectors={valid_count}/{expected_count}")
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
