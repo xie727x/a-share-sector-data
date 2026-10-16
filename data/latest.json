@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-10-15T16:33:43.102561+08:00",
+  "generated_at": "2026-10-16T16:27:58.494125+08:00",
   "data_source": "AkShare / Eastmoney industry boards",
   "data_status": "unavailable",
-  "reason": "source_unavailable: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+  "reason": "source_unavailable: Cannot save file into a non-existent directory: '/home/runner/work/a-share-sector-data/a-share-sector-data/data/history'",
   "sectors": []
 }
