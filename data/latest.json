@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-11-16T19:58:38.703358+08:00",
+  "generated_at": "2026-11-17T20:23:21.615580+08:00",
   "data_source": "AkShare / Eastmoney industry boards",
   "data_status": "unavailable",
-  "reason": "source_unavailable: 东方财富 push2 行情服务器断开了连接，通常是短时间内请求过多，当前 IP 被临时限流。首次限流一般约 5 分钟后恢复，反复触发后可能需要 40 分钟以上；等待期间不要重复调用东方财富的行情接口，否则会延长限流。",
+  "reason": "source_unavailable: index_zh_a_hist 已在 1.20.44 更名为 index_zh_hist_em，请改用 ak.index_zh_hist_em；参数与返回的列也可能有调整，用 ak.interface_info(\"index_zh_hist_em\") 查看。完整对照见 https://akshare.akfamily.xyz/changelog.html#changelog-rename",
   "sectors": []
 }
